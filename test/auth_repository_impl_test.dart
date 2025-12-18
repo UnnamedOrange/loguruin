@@ -44,6 +44,33 @@ void main() {
       expect(dataSource.user, isNull);
     });
 
+    test('getSessionExpiry returns expiry for cached session', () async {
+      final issuedAt = DateTime.now().toUtc();
+      dataSource = FakeAuthDataSource(issuedAt: issuedAt);
+      repository = AuthRepositoryImpl(dataSource: dataSource);
+      await repository.logIn(username: 'erin', password: 'pw');
+
+      final expiresAt = await repository.getSessionExpiry();
+
+      expect(expiresAt, issuedAt.add(kAuthTokenValidity));
+      expect(dataSource.getSavedUserCalls, 0);
+    });
+
+    test('getSessionExpiry clears expired cache', () async {
+      dataSource = FakeAuthDataSource(
+        issuedAt: DateTime.now().toUtc().subtract(
+          kAuthTokenValidity + const Duration(seconds: 1),
+        ),
+      );
+      repository = AuthRepositoryImpl(dataSource: dataSource);
+      await repository.logIn(username: 'frank', password: 'pw');
+
+      final expiresAt = await repository.getSessionExpiry();
+
+      expect(expiresAt, isNull);
+      expect(dataSource.user, isNull);
+    });
+
     test('refreshSession updates cached tokens', () async {
       await repository.logIn(username: 'carol', password: 'pw');
       final initial = await repository.getCurrentUser();

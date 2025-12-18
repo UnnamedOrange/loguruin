@@ -375,6 +375,15 @@ class _CountingAuthRepository implements AuthRepository {
   Future<LoggedInUser?> getCurrentUser() async => user;
 
   @override
+  Future<DateTime?> getSessionExpiry() async {
+    final current = await getCurrentUser();
+    if (current == null) {
+      return null;
+    }
+    return current.tokens.lastRefreshedAt.toUtc().add(kAuthTokenValidity);
+  }
+
+  @override
   Future<bool> hasValidSession() async => user != null;
 
   @override

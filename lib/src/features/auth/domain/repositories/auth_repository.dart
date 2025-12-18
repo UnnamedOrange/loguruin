@@ -11,6 +11,8 @@ abstract class AuthRepository {
 
   Future<LoggedInUser?> getCurrentUser();
 
+  Future<DateTime?> getSessionExpiry();
+
   Future<bool> hasValidSession();
 
   Future<LoggedInUser> refreshSession();

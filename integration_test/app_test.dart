@@ -129,6 +129,10 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.settings));
     await tester.pumpAndSettle();
+    await _waitForCondition(
+      tester,
+      () => find.textContaining('Valid until:').evaluate().isNotEmpty,
+    );
     await tester.tap(find.text('Log out'));
     await tester.pumpAndSettle();
     await _waitForText(tester, 'Log in');
@@ -156,5 +160,11 @@ void main() {
     await _waitForText(tester, 'Hello, cached-user');
 
     expect(find.text('Log in'), findsNothing);
+    await tester.tap(find.byIcon(Icons.settings));
+    await tester.pumpAndSettle();
+    await _waitForCondition(
+      tester,
+      () => find.textContaining('Valid until:').evaluate().isNotEmpty,
+    );
   });
 }

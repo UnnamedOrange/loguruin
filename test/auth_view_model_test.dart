@@ -2,6 +2,7 @@
 // See the LICENSE file in the repository root for full License text.
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:loguruin/src/features/auth/data/datasources/auth_local_data_source.dart';
 import 'package:loguruin/src/features/auth/domain/models/logged_in_user.dart';
 import 'package:loguruin/src/features/auth/domain/repositories/auth_repository.dart';
 import 'package:loguruin/src/features/auth/presentation/providers/auth_view_model.dart';
@@ -80,6 +81,26 @@ void main() {
       expect(repository.logOutCalled, isTrue);
     });
 
+    test('getSessionExpiry returns expiry when authenticated', () async {
+      repository.user = _buildUser('frank');
+
+      await viewModel.bootstrap();
+      final expiresAt = await viewModel.getSessionExpiry();
+
+      expect(
+        expiresAt,
+        repository.user!.tokens.lastRefreshedAt.toUtc().add(kAuthTokenValidity),
+      );
+      expect(viewModel.status, AuthStatus.authenticated);
+    });
+
+    test('getSessionExpiry returns null when unauthenticated', () async {
+      final expiresAt = await viewModel.getSessionExpiry();
+
+      expect(expiresAt, isNull);
+      expect(viewModel.user, isNull);
+    });
+
     test('logOut clears user and sets unauthenticated state', () async {
       await viewModel.logIn(username: 'eve', password: 'pw');
 
@@ -126,6 +147,14 @@ class FakeAuthRepository implements AuthRepository {
 
   @override
   Future<LoggedInUser?> getCurrentUser() async => user;
+
+  @override
+  Future<DateTime?> getSessionExpiry() async {
+    if (user == null) {
+      return null;
+    }
+    return user!.tokens.lastRefreshedAt.toUtc().add(kAuthTokenValidity);
+  }
 
   @override
   Future<bool> hasValidSession() async => user != null;

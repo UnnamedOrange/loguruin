@@ -103,6 +103,17 @@ class AuthViewModel extends ChangeNotifier {
     }
   }
 
+  Future<DateTime?> getSessionExpiry() async {
+    if (_status != AuthStatus.authenticated) {
+      return null;
+    }
+    try {
+      return await _authRepository.getSessionExpiry();
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> logOut() async {
     await _authRepository.logOut();
     _setState(

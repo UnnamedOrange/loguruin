@@ -19,6 +19,8 @@ class MainPage extends StatefulWidget {
 class _MainPageState extends State<MainPage> {
   int _currentIndex = 0;
   bool _sessionValidated = false;
+  bool _sessionExpiryLoading = false;
+  DateTime? _sessionExpiresAt;
 
   @override
   void initState() {
@@ -32,9 +34,48 @@ class _MainPageState extends State<MainPage> {
     }
     _sessionValidated = true;
     final authViewModel = context.read<AuthViewModel>();
-    if (authViewModel.status == AuthStatus.authenticated) {
-      await authViewModel.refreshSession();
+    if (authViewModel.status != AuthStatus.authenticated) {
+      return;
     }
+    final refreshed = await authViewModel.refreshSession();
+    if (!mounted || !refreshed) {
+      return;
+    }
+    if (authViewModel.status != AuthStatus.authenticated) {
+      return;
+    }
+    await _loadSessionExpiry(authViewModel);
+  }
+
+  Future<void> _loadSessionExpiry(AuthViewModel authViewModel) async {
+    if (_sessionExpiryLoading || !mounted) {
+      return;
+    }
+    if (authViewModel.status != AuthStatus.authenticated) {
+      return;
+    }
+    _sessionExpiryLoading = true;
+    try {
+      final expiresAt = await authViewModel.getSessionExpiry();
+      if (!mounted || authViewModel.status != AuthStatus.authenticated) {
+        return;
+      }
+      setState(() {
+        _sessionExpiresAt = expiresAt;
+      });
+    } finally {
+      _sessionExpiryLoading = false;
+    }
+  }
+
+  String _sessionExpiryLabel() {
+    if (_sessionExpiresAt != null) {
+      return 'Valid until: ${_sessionExpiresAt!.toLocal().toIso8601String()}';
+    }
+    if (_sessionExpiryLoading) {
+      return 'Checking session expiry...';
+    }
+    return 'Unknown session expiry';
   }
 
   @override
@@ -62,6 +103,7 @@ class _MainPageState extends State<MainPage> {
           _SettingsView(
             username: username,
             userId: userId,
+            sessionExpiryText: _sessionExpiryLabel(),
             onLogOut: isBusy ? null : () => authViewModel.logOut(),
           ),
         ],
@@ -106,11 +148,13 @@ class _SettingsView extends StatelessWidget {
   const _SettingsView({
     required this.username,
     required this.userId,
+    required this.sessionExpiryText,
     required this.onLogOut,
   });
 
   final String username;
   final String userId;
+  final String sessionExpiryText;
   final VoidCallback? onLogOut;
 
   @override
@@ -127,6 +171,12 @@ class _SettingsView extends StatelessWidget {
             leading: const Icon(Icons.person),
             title: Text(username),
             subtitle: Text(userId.isNotEmpty ? userId : 'Unknown user'),
+          ),
+          const SizedBox(height: 12),
+          ListTile(
+            leading: const Icon(Icons.schedule),
+            title: const Text('Session validity'),
+            subtitle: Text(sessionExpiryText),
           ),
           const SizedBox(height: 24),
           SizedBox(

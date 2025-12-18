@@ -46,6 +46,15 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<DateTime?> getSessionExpiry() async {
+    final user = await getCurrentUser();
+    if (user == null) {
+      return null;
+    }
+    return _expiresAt(user.tokens);
+  }
+
+  @override
   Future<bool> hasValidSession() async {
     return await getCurrentUser() != null;
   }
@@ -68,8 +77,11 @@ class AuthRepositoryImpl implements AuthRepository {
     await _dataSource.logOut();
   }
 
+  DateTime _expiresAt(AuthTokens tokens) {
+    return tokens.lastRefreshedAt.toUtc().add(kAuthTokenValidity);
+  }
+
   bool _isTokenExpired(AuthTokens tokens) {
-    final expiresAt = tokens.lastRefreshedAt.toUtc().add(kAuthTokenValidity);
-    return DateTime.now().toUtc().isAfter(expiresAt);
+    return DateTime.now().toUtc().isAfter(_expiresAt(tokens));
   }
 }
