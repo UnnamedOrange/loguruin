@@ -37,6 +37,24 @@ void main() {
   });
 
   group('AppRouter navigation', () {
+    testWidgets('initial login route keeps single page on stack', (
+      tester,
+    ) async {
+      final router = AppRouter();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          navigatorKey: router.navigatorKey,
+          onGenerateRoute: router.onGenerateRoute,
+          onGenerateInitialRoutes: router.onGenerateInitialRoutes,
+          initialRoute: AppRoutes.login,
+        ),
+      );
+
+      expect(find.text('Log in'), findsOneWidget);
+      expect(router.navigatorKey.currentState?.canPop(), isFalse);
+    });
+
     testWidgets('goToMain replaces stack with main page', (tester) async {
       final router = AppRouter();
 
@@ -44,17 +62,18 @@ void main() {
         MaterialApp(
           navigatorKey: router.navigatorKey,
           onGenerateRoute: router.onGenerateRoute,
+          onGenerateInitialRoutes: router.onGenerateInitialRoutes,
           initialRoute: AppRoutes.login,
         ),
       );
 
-      expect(find.text('Mock Login'), findsOneWidget);
+      expect(find.text('Log in'), findsOneWidget);
 
       router.goToMain();
       await tester.pumpAndSettle();
 
       expect(find.text('Main Page'), findsOneWidget);
-      expect(find.text('Mock Login'), findsNothing);
+      expect(find.text('Log in'), findsNothing);
     });
 
     testWidgets('goToLogin replaces stack with login page', (tester) async {
@@ -64,6 +83,7 @@ void main() {
         MaterialApp(
           navigatorKey: router.navigatorKey,
           onGenerateRoute: router.onGenerateRoute,
+          onGenerateInitialRoutes: router.onGenerateInitialRoutes,
           initialRoute: AppRoutes.main,
         ),
       );
@@ -73,7 +93,7 @@ void main() {
       router.goToLogin();
       await tester.pumpAndSettle();
 
-      expect(find.text('Mock Login'), findsOneWidget);
+      expect(find.text('Log in'), findsOneWidget);
       expect(find.text('Main Page'), findsNothing);
     });
 
@@ -108,7 +128,7 @@ void main() {
 
       await tester.pump();
 
-      expect(find.text('Mock Login'), findsOneWidget);
+      expect(find.text('Log in'), findsOneWidget);
     });
   });
 
@@ -126,8 +146,20 @@ void main() {
         ),
       );
 
-      await tester.tap(find.text('Mock Login'));
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Username'),
+        'user',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Password'),
+        'password',
+      );
       await tester.pump();
+
+      final loginButton = find.widgetWithText(ElevatedButton, 'Log in');
+      expect(tester.widget<ElevatedButton>(loginButton).onPressed, isNotNull);
+      await tester.tap(find.text('Log in'));
+      await tester.pump(const Duration(milliseconds: 400));
 
       expect(loggedIn, isTrue);
     });

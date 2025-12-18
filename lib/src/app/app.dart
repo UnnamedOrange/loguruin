@@ -42,14 +42,10 @@ class _LoguruinAppState extends State<LoguruinApp> {
         ? MaterialApp(
             navigatorKey: _appRouter.navigatorKey,
             onGenerateRoute: _appRouter.onGenerateRoute,
+            onGenerateInitialRoutes: _appRouter.onGenerateInitialRoutes,
             initialRoute: _appRouter.initialRoute(_destination),
           )
-        : const MaterialApp(
-            home: SplashPage(),
-          );
-    return AppRouterScope(
-      appRouter: _appRouter,
-      child: child,
-    );
+        : const MaterialApp(home: SplashPage());
+    return AppRouterScope(appRouter: _appRouter, child: child);
   }
 }

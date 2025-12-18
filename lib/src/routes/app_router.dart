@@ -45,21 +45,12 @@ class AppRouter {
         : AppRoutes.login;
   }
 
+  List<Route<dynamic>> onGenerateInitialRoutes(String initialRouteName) {
+    return <Route<dynamic>>[_buildRoute(initialRouteName)];
+  }
+
   Route<dynamic>? onGenerateRoute(RouteSettings settings) {
-    switch (settings.name) {
-      case AppRoutes.login:
-        return MaterialPageRoute<void>(
-          builder: (_) => LoginPage(onLoggedIn: goToMain),
-        );
-      case AppRoutes.main:
-        return MaterialPageRoute<void>(
-          builder: (_) => MainPage(onRequireLogin: goToLogin),
-        );
-      default:
-        return MaterialPageRoute<void>(
-          builder: (_) => LoginPage(onLoggedIn: goToMain),
-        );
-    }
+    return _buildRoute(settings.name);
   }
 
   void goToMain() {
@@ -76,6 +67,21 @@ class AppRouter {
       return;
     }
     navigator.pushNamedAndRemoveUntil(AppRoutes.login, (_) => false);
+  }
+
+  Route<dynamic> _buildRoute(String? name) {
+    switch (name) {
+      case AppRoutes.main:
+        return MaterialPageRoute<void>(
+          builder: (_) => MainPage(onRequireLogin: goToLogin),
+        );
+      case AppRoutes.login:
+      case '/':
+      default:
+        return MaterialPageRoute<void>(
+          builder: (_) => LoginPage(onLoggedIn: goToMain),
+        );
+    }
   }
 }
 
