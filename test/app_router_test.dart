@@ -76,6 +76,26 @@ void main() {
       expect(find.text('Log in'), findsNothing);
     });
 
+    testWidgets('goToMain passes username to main page greeting', (
+      tester,
+    ) async {
+      final router = AppRouter();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          navigatorKey: router.navigatorKey,
+          onGenerateRoute: router.onGenerateRoute,
+          onGenerateInitialRoutes: router.onGenerateInitialRoutes,
+          initialRoute: AppRoutes.login,
+        ),
+      );
+
+      router.goToMain(username: 'alice');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Hello, alice'), findsOneWidget);
+    });
+
     testWidgets('goToLogin replaces stack with login page', (tester) async {
       final router = AppRouter();
 
@@ -134,14 +154,12 @@ void main() {
 
   group('LoginPage', () {
     testWidgets('invokes callback when pressing login button', (tester) async {
-      var loggedIn = false;
+      String? loggedInUsername;
 
       await tester.pumpWidget(
         MaterialApp(
           home: LoginPage(
-            onLoggedIn: () {
-              loggedIn = true;
-            },
+            onLoggedIn: (username) => loggedInUsername = username,
           ),
         ),
       );
@@ -161,7 +179,7 @@ void main() {
       await tester.tap(find.text('Log in'));
       await tester.pump(const Duration(milliseconds: 400));
 
-      expect(loggedIn, isTrue);
+      expect(loggedInUsername, 'user');
     });
   });
 

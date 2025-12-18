@@ -46,19 +46,23 @@ class AppRouter {
   }
 
   List<Route<dynamic>> onGenerateInitialRoutes(String initialRouteName) {
-    return <Route<dynamic>>[_buildRoute(initialRouteName)];
+    return <Route<dynamic>>[_buildRoute(RouteSettings(name: initialRouteName))];
   }
 
   Route<dynamic>? onGenerateRoute(RouteSettings settings) {
-    return _buildRoute(settings.name);
+    return _buildRoute(settings);
   }
 
-  void goToMain() {
+  void goToMain({String? username, String? userId}) {
     final navigator = navigatorKey.currentState;
     if (navigator == null) {
       return;
     }
-    navigator.pushNamedAndRemoveUntil(AppRoutes.main, (_) => false);
+    navigator.pushNamedAndRemoveUntil(
+      AppRoutes.main,
+      (_) => false,
+      arguments: MainPageConfig(username: username, userId: userId),
+    );
   }
 
   void goToLogin() {
@@ -69,20 +73,34 @@ class AppRouter {
     navigator.pushNamedAndRemoveUntil(AppRoutes.login, (_) => false);
   }
 
-  Route<dynamic> _buildRoute(String? name) {
-    switch (name) {
+  Route<dynamic> _buildRoute(RouteSettings settings) {
+    switch (settings.name) {
       case AppRoutes.main:
+        final args = settings.arguments;
+        final config = args is MainPageConfig ? args : null;
         return MaterialPageRoute<void>(
-          builder: (_) => MainPage(onRequireLogin: goToLogin),
+          builder: (_) => MainPage(
+            onRequireLogin: goToLogin,
+            username: config?.username ?? 'User',
+            userId: config?.userId,
+          ),
         );
       case AppRoutes.login:
       case '/':
       default:
         return MaterialPageRoute<void>(
-          builder: (_) => LoginPage(onLoggedIn: goToMain),
+          builder: (_) =>
+              LoginPage(onLoggedIn: (username) => goToMain(username: username)),
         );
     }
   }
+}
+
+class MainPageConfig {
+  const MainPageConfig({this.username, this.userId});
+
+  final String? username;
+  final String? userId;
 }
 
 class AppRouterScope extends InheritedWidget {

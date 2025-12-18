@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 class LoginPage extends StatefulWidget {
   const LoginPage({required this.onLoggedIn, super.key});
 
-  final VoidCallback onLoggedIn;
+  final ValueChanged<String> onLoggedIn;
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -68,7 +68,7 @@ class _LoginPageState extends State<LoginPage> {
       if (!mounted) {
         return;
       }
-      widget.onLoggedIn();
+      widget.onLoggedIn(_usernameController.text.trim());
     } catch (_) {
       if (!mounted) {
         return;
