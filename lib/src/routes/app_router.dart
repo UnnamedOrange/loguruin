@@ -3,41 +3,16 @@
 
 import 'package:flutter/material.dart';
 
+import '../features/auth/domain/models/logged_in_user.dart';
 import '../features/auth/presentation/pages/login_page.dart';
 import '../features/home/presentation/pages/main_page.dart';
 import 'app_routes.dart';
 
 enum AppDestination { login, main }
 
-abstract class AuthStatusResolver {
-  Future<bool> hasValidSession();
-}
-
-class InMemoryAuthStatusResolver implements AuthStatusResolver {
-  InMemoryAuthStatusResolver({bool authenticated = false})
-    : _authenticated = authenticated;
-
-  bool _authenticated;
-
-  @override
-  Future<bool> hasValidSession() async => _authenticated;
-
-  Future<void> setAuthenticated(bool value) async {
-    _authenticated = value;
-  }
-}
-
 class AppRouter {
-  AppRouter({AuthStatusResolver? statusResolver})
-    : authStatusResolver = statusResolver ?? InMemoryAuthStatusResolver();
-
-  final AuthStatusResolver authStatusResolver;
+  AppRouter();
   final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
-
-  Future<AppDestination> resolveDestination() async {
-    final hasSession = await authStatusResolver.hasValidSession();
-    return hasSession ? AppDestination.main : AppDestination.login;
-  }
 
   String initialRoute(AppDestination destination) {
     return destination == AppDestination.main
@@ -53,7 +28,7 @@ class AppRouter {
     return _buildRoute(settings);
   }
 
-  void goToMain({String? username, String? userId}) {
+  void goToMain({LoggedInUser? user}) {
     final navigator = navigatorKey.currentState;
     if (navigator == null) {
       return;
@@ -61,7 +36,7 @@ class AppRouter {
     navigator.pushNamedAndRemoveUntil(
       AppRoutes.main,
       (_) => false,
-      arguments: MainPageConfig(username: username, userId: userId),
+      arguments: user,
     );
   }
 
@@ -76,31 +51,16 @@ class AppRouter {
   Route<dynamic> _buildRoute(RouteSettings settings) {
     switch (settings.name) {
       case AppRoutes.main:
-        final args = settings.arguments;
-        final config = args is MainPageConfig ? args : null;
         return MaterialPageRoute<void>(
-          builder: (_) => MainPage(
-            onRequireLogin: goToLogin,
-            username: config?.username ?? 'User',
-            userId: config?.userId,
-          ),
+          builder: (_) =>
+              MainPage(initialUser: settings.arguments as LoggedInUser?),
         );
       case AppRoutes.login:
       case '/':
       default:
-        return MaterialPageRoute<void>(
-          builder: (_) =>
-              LoginPage(onLoggedIn: (username) => goToMain(username: username)),
-        );
+        return MaterialPageRoute<void>(builder: (_) => const LoginPage());
     }
   }
-}
-
-class MainPageConfig {
-  const MainPageConfig({this.username, this.userId});
-
-  final String? username;
-  final String? userId;
 }
 
 class AppRouterScope extends InheritedWidget {

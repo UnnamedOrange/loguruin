@@ -2,18 +2,15 @@
 // See the LICENSE file in the repository root for full License text.
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../../../auth/domain/models/logged_in_user.dart';
+import '../../../auth/presentation/providers/auth_view_model.dart';
 
 class MainPage extends StatefulWidget {
-  const MainPage({
-    required this.onRequireLogin,
-    this.username = 'User',
-    this.userId,
-    super.key,
-  });
+  const MainPage({this.initialUser, super.key});
 
-  final VoidCallback onRequireLogin;
-  final String username;
-  final String? userId;
+  final LoggedInUser? initialUser;
 
   @override
   State<MainPage> createState() => _MainPageState();
@@ -21,15 +18,39 @@ class MainPage extends StatefulWidget {
 
 class _MainPageState extends State<MainPage> {
   int _currentIndex = 0;
+  bool _sessionValidated = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _ensureSessionValid());
+  }
+
+  Future<void> _ensureSessionValid() async {
+    if (_sessionValidated || !mounted) {
+      return;
+    }
+    _sessionValidated = true;
+    final authViewModel = context.read<AuthViewModel>();
+    if (authViewModel.status == AuthStatus.authenticated) {
+      await authViewModel.refreshSession();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final authViewModel = context.watch<AuthViewModel>();
+    final user = authViewModel.user ?? widget.initialUser;
+    final username = user?.username ?? 'User';
+    final userId = user?.id ?? 'Unknown user';
+    final isBusy = authViewModel.isBusy;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(_currentIndex == 0 ? 'Main Page' : 'Settings'),
         actions: [
           IconButton(
-            onPressed: widget.onRequireLogin,
+            onPressed: isBusy ? null : () => authViewModel.logOut(),
             icon: const Icon(Icons.logout),
           ),
         ],
@@ -37,11 +58,11 @@ class _MainPageState extends State<MainPage> {
       body: IndexedStack(
         index: _currentIndex,
         children: <Widget>[
-          _HomeView(username: widget.username),
+          _HomeView(username: username),
           _SettingsView(
-            username: widget.username,
-            userId: widget.userId,
-            onLogOut: widget.onRequireLogin,
+            username: username,
+            userId: userId,
+            onLogOut: isBusy ? null : () => authViewModel.logOut(),
           ),
         ],
       ),
@@ -84,20 +105,17 @@ class _HomeView extends StatelessWidget {
 class _SettingsView extends StatelessWidget {
   const _SettingsView({
     required this.username,
+    required this.userId,
     required this.onLogOut,
-    this.userId,
   });
 
   final String username;
-  final String? userId;
-  final VoidCallback onLogOut;
+  final String userId;
+  final VoidCallback? onLogOut;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final resolvedUserId = userId?.isNotEmpty == true
-        ? userId!
-        : 'Unknown user';
 
     return SafeArea(
       child: ListView(
@@ -108,7 +126,7 @@ class _SettingsView extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.person),
             title: Text(username),
-            subtitle: Text(resolvedUserId),
+            subtitle: Text(userId.isNotEmpty ? userId : 'Unknown user'),
           ),
           const SizedBox(height: 24),
           SizedBox(

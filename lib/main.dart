@@ -2,10 +2,12 @@
 // See the LICENSE file in the repository root for full License text.
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'src/app/app.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const LoguruinApp());
+  final sharedPreferences = await SharedPreferences.getInstance();
+  runApp(LoguruinApp(sharedPreferences: sharedPreferences));
 }

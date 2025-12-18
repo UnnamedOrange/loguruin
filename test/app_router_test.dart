@@ -5,50 +5,83 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:loguruin/src/app/app.dart';
 import 'package:loguruin/src/app/splash_page.dart';
+import 'package:loguruin/src/features/auth/data/datasources/auth_local_data_source.dart';
+import 'package:loguruin/src/features/auth/data/repositories/auth_repository_impl.dart';
+import 'package:loguruin/src/features/auth/domain/models/logged_in_user.dart';
+import 'package:loguruin/src/features/auth/domain/repositories/auth_repository.dart';
 import 'package:loguruin/src/features/auth/presentation/pages/login_page.dart';
+import 'package:loguruin/src/features/auth/presentation/providers/auth_view_model.dart';
 import 'package:loguruin/src/features/home/presentation/pages/main_page.dart';
 import 'package:loguruin/src/routes/app_router.dart';
 import 'package:loguruin/src/routes/app_routes.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
-  group('AppRouter.resolveDestination', () {
-    test('returns login when unauthenticated', () async {
-      final router = AppRouter(
-        statusResolver: InMemoryAuthStatusResolver(authenticated: false),
-      );
+  TestWidgetsFlutterBinding.ensureInitialized();
 
-      expect(await router.resolveDestination(), AppDestination.login);
-    });
+  late SharedPreferences sharedPreferences;
+  late AuthRepository authRepository;
+  late AuthViewModel authViewModel;
 
-    test('returns main when authenticated', () async {
-      final router = AppRouter(
-        statusResolver: InMemoryAuthStatusResolver(authenticated: true),
-      );
+  setUp(() async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    sharedPreferences = await SharedPreferences.getInstance();
+    authRepository = AuthRepositoryImpl(
+      dataSource: AuthLocalDataSource(sharedPreferences: sharedPreferences),
+    );
+    authViewModel = AuthViewModel(authRepository: authRepository);
+  });
 
-      expect(await router.resolveDestination(), AppDestination.main);
-    });
+  Widget buildRouterApp(
+    AppRouter router,
+    AuthViewModel viewModel, {
+    String initialRoute = AppRoutes.login,
+  }) {
+    return AppRouterScope(
+      appRouter: router,
+      child: ChangeNotifierProvider<AuthViewModel>.value(
+        value: viewModel,
+        child: MaterialApp(
+          navigatorKey: router.navigatorKey,
+          onGenerateRoute: router.onGenerateRoute,
+          onGenerateInitialRoutes: router.onGenerateInitialRoutes,
+          initialRoute: initialRoute,
+        ),
+      ),
+    );
+  }
 
+  Widget buildLogin(AuthViewModel viewModel) {
+    return ChangeNotifierProvider<AuthViewModel>.value(
+      value: viewModel,
+      child: const MaterialApp(home: LoginPage()),
+    );
+  }
+
+  Widget buildMain(AuthViewModel viewModel, {LoggedInUser? initialUser}) {
+    return ChangeNotifierProvider<AuthViewModel>.value(
+      value: viewModel,
+      child: MaterialApp(home: MainPage(initialUser: initialUser)),
+    );
+  }
+
+  group('AppRouter', () {
     test('maps destinations to initial routes', () {
       final router = AppRouter();
 
       expect(router.initialRoute(AppDestination.login), AppRoutes.login);
       expect(router.initialRoute(AppDestination.main), AppRoutes.main);
     });
-  });
 
-  group('AppRouter navigation', () {
     testWidgets('initial login route keeps single page on stack', (
       tester,
     ) async {
       final router = AppRouter();
+      await authViewModel.bootstrap();
 
       await tester.pumpWidget(
-        MaterialApp(
-          navigatorKey: router.navigatorKey,
-          onGenerateRoute: router.onGenerateRoute,
-          onGenerateInitialRoutes: router.onGenerateInitialRoutes,
-          initialRoute: AppRoutes.login,
-        ),
+        buildRouterApp(router, authViewModel, initialRoute: AppRoutes.login),
       );
 
       expect(find.text('Log in'), findsOneWidget);
@@ -57,56 +90,28 @@ void main() {
 
     testWidgets('goToMain replaces stack with main page', (tester) async {
       final router = AppRouter();
+      await authViewModel.logIn(username: 'alice', password: 'pw');
 
       await tester.pumpWidget(
-        MaterialApp(
-          navigatorKey: router.navigatorKey,
-          onGenerateRoute: router.onGenerateRoute,
-          onGenerateInitialRoutes: router.onGenerateInitialRoutes,
-          initialRoute: AppRoutes.login,
-        ),
+        buildRouterApp(router, authViewModel, initialRoute: AppRoutes.login),
       );
 
-      expect(find.text('Log in'), findsOneWidget);
-
-      router.goToMain();
+      router.goToMain(user: authViewModel.user);
       await tester.pumpAndSettle();
 
       expect(find.text('Main Page'), findsOneWidget);
-      expect(find.text('Log in'), findsNothing);
-    });
-
-    testWidgets('goToMain passes username to main page greeting', (
-      tester,
-    ) async {
-      final router = AppRouter();
-
-      await tester.pumpWidget(
-        MaterialApp(
-          navigatorKey: router.navigatorKey,
-          onGenerateRoute: router.onGenerateRoute,
-          onGenerateInitialRoutes: router.onGenerateInitialRoutes,
-          initialRoute: AppRoutes.login,
-        ),
-      );
-
-      router.goToMain(username: 'alice');
-      await tester.pumpAndSettle();
-
       expect(find.text('Hello, alice'), findsOneWidget);
+      expect(find.text('Log in'), findsNothing);
     });
 
     testWidgets('goToLogin replaces stack with login page', (tester) async {
       final router = AppRouter();
+      await authViewModel.logIn(username: 'bob', password: 'pw');
 
       await tester.pumpWidget(
-        MaterialApp(
-          navigatorKey: router.navigatorKey,
-          onGenerateRoute: router.onGenerateRoute,
-          onGenerateInitialRoutes: router.onGenerateInitialRoutes,
-          initialRoute: AppRoutes.main,
-        ),
+        buildRouterApp(router, authViewModel, initialRoute: AppRoutes.main),
       );
+      await tester.pumpAndSettle();
 
       expect(find.text('Main Page'), findsOneWidget);
 
@@ -141,7 +146,9 @@ void main() {
     testWidgets('shows splash then renders login after bootstrap', (
       tester,
     ) async {
-      await tester.pumpWidget(const LoguruinApp());
+      await tester.pumpWidget(
+        LoguruinApp(sharedPreferences: sharedPreferences),
+      );
 
       expect(find.byType(SplashPage), findsOneWidget);
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
@@ -150,19 +157,44 @@ void main() {
 
       expect(find.text('Log in'), findsOneWidget);
     });
+
+    testWidgets('navigates to main after successful login', (tester) async {
+      await tester.pumpWidget(
+        LoguruinApp(sharedPreferences: sharedPreferences),
+      );
+      await tester.pump();
+      final loginContext = tester.element(find.byType(LoginPage));
+      final viewModel = Provider.of<AuthViewModel>(loginContext, listen: false);
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Username'),
+        'user',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Password'),
+        'password',
+      );
+      await tester.pump();
+      expect(viewModel.isBusy, isFalse);
+      final loginButton = find.widgetWithText(ElevatedButton, 'Log in');
+      expect(tester.widget<ElevatedButton>(loginButton).onPressed, isNotNull);
+      await tester.tap(find.text('Log in'));
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      expect(viewModel.status, AuthStatus.authenticated);
+      expect(viewModel.errorMessage, isNull);
+      expect(sharedPreferences.getString('auth.cachedUser'), isNotNull);
+      expect(find.byType(MainPage), findsOneWidget);
+      expect(find.text('Log in'), findsNothing);
+    });
   });
 
   group('LoginPage', () {
-    testWidgets('invokes callback when pressing login button', (tester) async {
-      String? loggedInUsername;
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: LoginPage(
-            onLoggedIn: (username) => loggedInUsername = username,
-          ),
-        ),
-      );
+    testWidgets('logs in through view model when pressing login button', (
+      tester,
+    ) async {
+      await tester.pumpWidget(buildLogin(authViewModel));
 
       await tester.enterText(
         find.widgetWithText(TextFormField, 'Username'),
@@ -177,13 +209,15 @@ void main() {
       final loginButton = find.widgetWithText(ElevatedButton, 'Log in');
       expect(tester.widget<ElevatedButton>(loginButton).onPressed, isNotNull);
       await tester.tap(find.text('Log in'));
-      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump();
+      await tester.pump();
 
-      expect(loggedInUsername, 'user');
+      expect(authViewModel.status, AuthStatus.authenticated);
+      expect(authViewModel.user?.username, 'user');
     });
 
     testWidgets('disables login button when fields are empty', (tester) async {
-      await tester.pumpWidget(MaterialApp(home: LoginPage(onLoggedIn: (_) {})));
+      await tester.pumpWidget(buildLogin(authViewModel));
 
       final loginButton = find.widgetWithText(ElevatedButton, 'Log in');
 
@@ -193,11 +227,7 @@ void main() {
     testWidgets('shows validation error when password is too short', (
       tester,
     ) async {
-      var didLogIn = false;
-
-      await tester.pumpWidget(
-        MaterialApp(home: LoginPage(onLoggedIn: (_) => didLogIn = true)),
-      );
+      await tester.pumpWidget(buildLogin(authViewModel));
 
       await tester.enterText(
         find.widgetWithText(TextFormField, 'Username'),
@@ -221,11 +251,11 @@ void main() {
         passwordFieldState.errorText,
         'Password must be at least 6 characters',
       );
-      expect(didLogIn, isFalse);
+      expect(authViewModel.user, isNull);
     });
 
     testWidgets('toggles password visibility', (tester) async {
-      await tester.pumpWidget(MaterialApp(home: LoginPage(onLoggedIn: (_) {})));
+      await tester.pumpWidget(buildLogin(authViewModel));
 
       final passwordField = find.descendant(
         of: find.widgetWithText(TextFormField, 'Password'),
@@ -241,19 +271,12 @@ void main() {
     });
 
     testWidgets('disables form while submitting', (tester) async {
-      String? loggedInUsername;
-      var submitCount = 0;
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: LoginPage(
-            onLoggedIn: (username) {
-              submitCount++;
-              loggedInUsername = username;
-            },
-          ),
-        ),
+      final slowRepository = _CountingAuthRepository(
+        delay: const Duration(milliseconds: 200),
       );
+      final slowViewModel = AuthViewModel(authRepository: slowRepository);
+
+      await tester.pumpWidget(buildLogin(slowViewModel));
 
       await tester.enterText(
         find.widgetWithText(TextFormField, 'Username'),
@@ -268,45 +291,45 @@ void main() {
       await tester.tap(find.text('Log in'));
       await tester.pump();
 
-      expect(submitCount, 0);
-      expect(loggedInUsername, isNull);
+      expect(slowRepository.logInCalls, 1);
+      expect(slowViewModel.user, isNull);
 
-      await tester.pump(const Duration(milliseconds: 200));
-      expect(submitCount, 0);
-      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 250));
 
-      expect(submitCount, 1);
-      expect(loggedInUsername, 'user');
+      expect(slowRepository.logInCalls, 1);
+      expect(slowViewModel.status, AuthStatus.authenticated);
+      expect(slowViewModel.user?.username, 'user');
     });
   });
 
   group('MainPage', () {
-    testWidgets('invokes callback when pressing logout button', (tester) async {
-      var logoutRequested = false;
+    testWidgets('logs out when pressing logout button', (tester) async {
+      await authViewModel.logIn(username: 'user', password: 'pw');
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: MainPage(
-            onRequireLogin: () {
-              logoutRequested = true;
-            },
-          ),
-        ),
-      );
+      await tester.pumpWidget(buildMain(authViewModel));
+      await tester.pump();
 
       await tester.tap(find.byIcon(Icons.logout));
       await tester.pump();
 
-      expect(logoutRequested, isTrue);
+      expect(authViewModel.status, AuthStatus.unauthenticated);
+      expect(authViewModel.user, isNull);
     });
 
     testWidgets('shows fallback user id on settings tab', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: MainPage(onRequireLogin: () {}, username: 'Guest'),
+      final initialUser = LoggedInUser(
+        id: '',
+        username: 'Guest',
+        tokens: AuthTokens(
+          accessToken: 'a',
+          refreshToken: 'r',
+          lastRefreshedAt: DateTime.now().toUtc(),
         ),
       );
 
+      await tester.pumpWidget(
+        buildMain(authViewModel, initialUser: initialUser),
+      );
       await tester.tap(find.text('Settings'));
       await tester.pumpAndSettle();
 
@@ -319,4 +342,59 @@ void main() {
       expect(find.text('Unknown user'), findsOneWidget);
     });
   });
+}
+
+class _CountingAuthRepository implements AuthRepository {
+  _CountingAuthRepository({this.delay = const Duration(milliseconds: 1)});
+
+  final Duration delay;
+  int logInCalls = 0;
+  LoggedInUser? user;
+
+  @override
+  Future<LoggedInUser> logIn({
+    required String username,
+    required String password,
+  }) async {
+    logInCalls++;
+    await Future<void>.delayed(delay);
+    final now = DateTime.now().toUtc();
+    user = LoggedInUser(
+      id: 'id-$username',
+      username: username,
+      tokens: AuthTokens(
+        accessToken: 'access-$username',
+        refreshToken: 'refresh-$username',
+        lastRefreshedAt: now,
+      ),
+    );
+    return user!;
+  }
+
+  @override
+  Future<LoggedInUser?> getCurrentUser() async => user;
+
+  @override
+  Future<bool> hasValidSession() async => user != null;
+
+  @override
+  Future<LoggedInUser> refreshSession() async {
+    if (user == null) {
+      throw Exception('No cached session');
+    }
+    final now = DateTime.now().toUtc();
+    user = user!.copyWith(
+      tokens: user!.tokens.copyWith(
+        accessToken: '${user!.tokens.accessToken}-next',
+        refreshToken: '${user!.tokens.refreshToken}-next',
+        lastRefreshedAt: now,
+      ),
+    );
+    return user!;
+  }
+
+  @override
+  Future<void> logOut() async {
+    user = null;
+  }
 }

@@ -2,11 +2,12 @@
 // See the LICENSE file in the repository root for full License text.
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../providers/auth_view_model.dart';
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({required this.onLoggedIn, super.key});
-
-  final ValueChanged<String> onLoggedIn;
+  const LoginPage({super.key});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -17,8 +18,6 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
-  bool _isSubmitting = false;
-  String? _errorMessage;
 
   @override
   void initState() {
@@ -44,8 +43,8 @@ class _LoginPageState extends State<LoginPage> {
     });
   }
 
-  Future<void> _submit() async {
-    if (_isSubmitting) {
+  Future<void> _submit(AuthViewModel authViewModel) async {
+    if (authViewModel.isBusy) {
       return;
     }
     final formState = _formKey.currentState;
@@ -53,37 +52,13 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
     if (!formState.validate()) {
-      setState(() {
-        _errorMessage = null;
-      });
       return;
     }
     FocusScope.of(context).unfocus();
-    setState(() {
-      _isSubmitting = true;
-      _errorMessage = null;
-    });
-    try {
-      await Future<void>.delayed(const Duration(milliseconds: 350));
-      if (!mounted) {
-        return;
-      }
-      widget.onLoggedIn(_usernameController.text.trim());
-    } catch (_) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _errorMessage = 'Unable to log in. Please try again.';
-      });
-    } finally {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _isSubmitting = false;
-      });
-    }
+    await authViewModel.logIn(
+      username: _usernameController.text.trim(),
+      password: _passwordController.text,
+    );
   }
 
   String? _validateUsername(String? value) {
@@ -103,14 +78,17 @@ class _LoginPageState extends State<LoginPage> {
     return null;
   }
 
-  bool get _canSubmit {
-    return !_isSubmitting &&
+  bool _canSubmit(AuthViewModel authViewModel) {
+    return !authViewModel.isBusy &&
         _usernameController.text.trim().isNotEmpty &&
         _passwordController.text.isNotEmpty;
   }
 
   @override
   Widget build(BuildContext context) {
+    final authViewModel = context.watch<AuthViewModel>();
+    final isSubmitting = authViewModel.isBusy;
+    final errorMessage = authViewModel.errorMessage;
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -136,7 +114,7 @@ class _LoginPageState extends State<LoginPage> {
                     const SizedBox(height: 24),
                     TextFormField(
                       controller: _usernameController,
-                      enabled: !_isSubmitting,
+                      enabled: !isSubmitting,
                       decoration: const InputDecoration(
                         labelText: 'Username',
                         border: OutlineInputBorder(),
@@ -147,12 +125,12 @@ class _LoginPageState extends State<LoginPage> {
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _passwordController,
-                      enabled: !_isSubmitting,
+                      enabled: !isSubmitting,
                       decoration: InputDecoration(
                         labelText: 'Password',
                         border: const OutlineInputBorder(),
                         suffixIcon: IconButton(
-                          onPressed: _isSubmitting
+                          onPressed: isSubmitting
                               ? null
                               : _togglePasswordVisibility,
                           icon: Icon(
@@ -164,13 +142,13 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                       obscureText: _obscurePassword,
                       textInputAction: TextInputAction.done,
-                      onFieldSubmitted: (_) => _submit(),
+                      onFieldSubmitted: (_) => _submit(authViewModel),
                       validator: _validatePassword,
                     ),
                     const SizedBox(height: 16),
-                    if (_errorMessage != null) ...[
+                    if (errorMessage != null) ...[
                       Text(
-                        _errorMessage!,
+                        errorMessage,
                         style: TextStyle(color: theme.colorScheme.error),
                       ),
                       const SizedBox(height: 8),
@@ -178,8 +156,10 @@ class _LoginPageState extends State<LoginPage> {
                     SizedBox(
                       height: 48,
                       child: ElevatedButton(
-                        onPressed: _canSubmit ? _submit : null,
-                        child: _isSubmitting
+                        onPressed: _canSubmit(authViewModel)
+                            ? () => _submit(authViewModel)
+                            : null,
+                        child: isSubmitting
                             ? const SizedBox(
                                 width: 20,
                                 height: 20,

@@ -51,9 +51,9 @@ void main() {
         tokens: AuthTokens(
           accessToken: 'a',
           refreshToken: 'r',
-          lastRefreshedAt: DateTime.now()
-              .toUtc()
-              .subtract(kAuthTokenValidity + const Duration(seconds: 1)),
+          lastRefreshedAt: DateTime.now().toUtc().subtract(
+            kAuthTokenValidity + const Duration(seconds: 1),
+          ),
         ),
       );
       await sharedPreferences.setString(
@@ -87,7 +87,9 @@ void main() {
       expect(refreshed.tokens.accessToken, isNot(initial.tokens.accessToken));
       expect(refreshed.tokens.refreshToken, isNot(initial.tokens.refreshToken));
       expect(
-        refreshed.tokens.lastRefreshedAt.isAfter(initial.tokens.lastRefreshedAt),
+        refreshed.tokens.lastRefreshedAt.isAfter(
+          initial.tokens.lastRefreshedAt,
+        ),
         isTrue,
       );
 
@@ -103,9 +105,9 @@ void main() {
         tokens: AuthTokens(
           accessToken: 'a',
           refreshToken: 'r',
-          lastRefreshedAt: DateTime.now()
-              .toUtc()
-              .subtract(kAuthTokenValidity + const Duration(seconds: 1)),
+          lastRefreshedAt: DateTime.now().toUtc().subtract(
+            kAuthTokenValidity + const Duration(seconds: 1),
+          ),
         ),
       );
       await sharedPreferences.setString(
