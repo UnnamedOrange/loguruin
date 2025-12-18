@@ -181,6 +181,103 @@ void main() {
 
       expect(loggedInUsername, 'user');
     });
+
+    testWidgets('disables login button when fields are empty', (tester) async {
+      await tester.pumpWidget(MaterialApp(home: LoginPage(onLoggedIn: (_) {})));
+
+      final loginButton = find.widgetWithText(ElevatedButton, 'Log in');
+
+      expect(tester.widget<ElevatedButton>(loginButton).onPressed, isNull);
+    });
+
+    testWidgets('shows validation error when password is too short', (
+      tester,
+    ) async {
+      var didLogIn = false;
+
+      await tester.pumpWidget(
+        MaterialApp(home: LoginPage(onLoggedIn: (_) => didLogIn = true)),
+      );
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Username'),
+        'user',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Password'),
+        '123',
+      );
+      await tester.tap(find.text('Log in'));
+      await tester.pump();
+
+      final formState = tester.state<FormState>(find.byType(Form));
+      expect(formState.validate(), isFalse);
+      await tester.pump();
+
+      final passwordFieldState = tester.state<FormFieldState<String>>(
+        find.widgetWithText(TextFormField, 'Password'),
+      );
+      expect(
+        passwordFieldState.errorText,
+        'Password must be at least 6 characters',
+      );
+      expect(didLogIn, isFalse);
+    });
+
+    testWidgets('toggles password visibility', (tester) async {
+      await tester.pumpWidget(MaterialApp(home: LoginPage(onLoggedIn: (_) {})));
+
+      final passwordField = find.descendant(
+        of: find.widgetWithText(TextFormField, 'Password'),
+        matching: find.byType(TextField),
+      );
+
+      expect(tester.widget<TextField>(passwordField).obscureText, isTrue);
+
+      await tester.tap(find.byIcon(Icons.visibility_off));
+      await tester.pump();
+
+      expect(tester.widget<TextField>(passwordField).obscureText, isFalse);
+    });
+
+    testWidgets('disables form while submitting', (tester) async {
+      String? loggedInUsername;
+      var submitCount = 0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: LoginPage(
+            onLoggedIn: (username) {
+              submitCount++;
+              loggedInUsername = username;
+            },
+          ),
+        ),
+      );
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Username'),
+        'user',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Password'),
+        'password',
+      );
+      await tester.tap(find.text('Log in'));
+      await tester.pump();
+      await tester.tap(find.text('Log in'));
+      await tester.pump();
+
+      expect(submitCount, 0);
+      expect(loggedInUsername, isNull);
+
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(submitCount, 0);
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(submitCount, 1);
+      expect(loggedInUsername, 'user');
+    });
   });
 
   group('MainPage', () {
@@ -201,6 +298,25 @@ void main() {
       await tester.pump();
 
       expect(logoutRequested, isTrue);
+    });
+
+    testWidgets('shows fallback user id on settings tab', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MainPage(onRequireLogin: () {}, username: 'Guest'),
+        ),
+      );
+
+      await tester.tap(find.text('Settings'));
+      await tester.pumpAndSettle();
+
+      final appBarTitle = find.descendant(
+        of: find.byType(AppBar),
+        matching: find.text('Settings'),
+      );
+      expect(appBarTitle, findsOneWidget);
+      expect(find.text('Guest'), findsWidgets);
+      expect(find.text('Unknown user'), findsOneWidget);
     });
   });
 }
