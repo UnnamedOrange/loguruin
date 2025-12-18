@@ -103,7 +103,10 @@ class AuthLocalDataSource implements AuthDataSource {
 
   Future<void> _persistUser(LoggedInUser user) async {
     final jsonString = json.encode(user.toJson());
-    final success = await _sharedPreferences.setString(_cachedUserKey, jsonString);
+    final success = await _sharedPreferences.setString(
+      _cachedUserKey,
+      jsonString,
+    );
     if (!success) {
       throw const AuthDataSourceException('Failed to persist session');
     }
